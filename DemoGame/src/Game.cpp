@@ -8,7 +8,6 @@
 #include "SceneInitializer.h"
 #include "ServiceLocator.h"
 #include "TextureLoader.h"
-#include "GizmoQueryStorage.h"
 
 bool Game::Init()
 {
@@ -54,13 +53,10 @@ bool Game::Init()
 	textureLoader->Init( _renderer );
 	serviceLocator.RegisterTextureLoader( textureLoader );
 
-	GizmoQueryStorage* gizmoQueryStorage = new GizmoQueryStorage();
-	serviceLocator.RegisterGizmoQueryStorage( gizmoQueryStorage );
-
 	SceneInitializer sceneInitializer;
 
 	NetLib::PeerType peerType = clientOrServer == 0 ? NetLib::PeerType::SERVER : NetLib::PeerType::CLIENT;
-	sceneInitializer.InitializeScene( _activeScene, peerType, _inputHandler );
+	sceneInitializer.InitializeScene( _activeScene, peerType, _inputHandler, _renderer );
 
 	return true;
 }
@@ -86,8 +82,8 @@ void Game::GameLoop()
 		}
 
 		Update( timeClock.GetElapsedTimeSeconds() );
-
-		Render();
+		Render( timeClock.GetElapsedTimeSeconds() );
+		EndOfFrame();
 	}
 }
 
@@ -131,13 +127,18 @@ void Game::Update( float32 elapsedTime )
 	_activeScene.Update( elapsedTime );
 }
 
-void Game::Render()
+void Game::Render( float32 elapsed_time )
 {
 	SDL_RenderClear( _renderer );
 
-	_activeScene.Render( _renderer );
+	_activeScene.Render( elapsed_time );
 
 	SDL_RenderPresent( _renderer );
+}
+
+void Game::EndOfFrame()
+{
+	_activeScene.EndOfFrame();
 }
 
 bool Game::Release()

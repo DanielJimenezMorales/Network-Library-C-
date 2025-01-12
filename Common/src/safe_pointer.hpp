@@ -39,6 +39,7 @@ class SafePointer
 		bool operator!=( const SafePointer< T >& other ) const { return !( *this == other ); }
 
 		T* GetRawPointer();
+		const T* GetRawPointer() const;
 		void Set( T* new_ptr );
 
 	private:
@@ -47,6 +48,12 @@ class SafePointer
 
 template < typename T >
 inline T* SafePointer< T >::GetRawPointer()
+{
+	return _rawPointer;
+}
+
+template < typename T >
+inline const T* SafePointer< T >::GetRawPointer() const
 {
 	return _rawPointer;
 }

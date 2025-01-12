@@ -1,10 +1,11 @@
 #include "PlayerSimulator.h"
 #include "InputState.h"
 #include "GameEntity.hpp"
-#include "TransformComponent.h"
 #include "PlayerControllerConfiguration.h"
-#include "PlayerControllerComponent.h"
 #include "Logger.h"
+
+#include "components/transform_component.h"
+#include "components/player_controller_component.h"
 
 void PlayerSimulator::Simulate( const InputState& inputs, GameEntity& playerEntity, float32 elapsedTime )
 {

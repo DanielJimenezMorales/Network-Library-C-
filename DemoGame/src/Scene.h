@@ -1,61 +1,93 @@
 #pragma once
 #include "numeric_types.h"
+#include "delegate.h"
 
-#include <SDL_image.h>
 #include <vector>
+#include <queue>
+#include <unordered_map>
 
-#include "SpriteRendererSystem.h"
-#include "GizmoRendererSystem.h"
-#include "EntityContainer.h"
+#include "ecs/entity_container.h"
+#include "ecs/systems_handler.h"
 
 class GameEntity;
-class IUpdateSystem;
 class IPreTickSystem;
-class ITickSystem;
-class IPosTickSystem;
+
+struct BaseEntityConfiguration;
+class IEntityFactory;
 
 class Scene
 {
 	public:
-		Scene()
-		    : _entityContainer()
-		    , _updateSystems()
-		    , _tickSystems()
-		{
-		}
-		~Scene(){};
+		Scene();
 
-		void Update( float32 elapsedTime );
-		void PreTick( float32 tickElapsedTime );
-		void Tick( float32 tickElapsedTime );
-		void PosTick( float32 tickElapsedTime );
-		void Render( SDL_Renderer* renderer );
+		bool RegisterEntityFactory( const std::string& id, IEntityFactory* factory );
 
-		void AddUpdateSystem( IUpdateSystem* system );
+		void AddSystem( ECS::SystemCoordinator* system );
+
+		template < typename T, typename... Params >
+		T& AddGlobalComponent( Params&&... params );
+
+		void Update( float32 elapsed_time );
+		void PreTick( float32 elapsed_time );
+		void Tick( float32 elapsed_time );
+		void PosTick( float32 elapsed_time );
+		void Render( float32 elapsed_time );
+		void EndOfFrame();
+
 		void AddPreTickSystem( IPreTickSystem* system );
-		void AddTickSystem( ITickSystem* system );
-		void AddPosTickSystem( IPosTickSystem* system );
 
 		GameEntity CreateGameEntity();
+		GameEntity CreateGameEntity( const std::string& type, const BaseEntityConfiguration* config );
 		void DestroyGameEntity( const GameEntity& entity );
 
 		template < typename T >
 		GameEntity GetFirstEntityOfType();
 		GameEntity GetEntityFromId( uint32 id );
 
-	private:
-		EntityContainer _entityContainer;
-		SpriteRendererSystem _spriteRendererSystem;
-		GizmoRendererSystem _gizmoRendererSystem;
+		template < typename Functor >
+		uint32 SubscribeToOnEntityCreate( Functor&& functor );
+		void UnsubscribeFromOnEntityCreate( uint32 id );
 
-		std::vector< IUpdateSystem* > _updateSystems;
+		template < typename Functor >
+		uint32 SubscribeToOnEntityDestroy( Functor&& functor );
+		void UnsubscribeFromOnEntityDestroy( uint32 id );
+
+	private:
+		void DestroyPendingEntities();
+
+		ECS::EntityContainer _entityContainer;
+		ECS::SystemsHandler _systemsHandler;
+
 		std::vector< IPreTickSystem* > _preTickSystems;
-		std::vector< ITickSystem* > _tickSystems;
-		std::vector< IPosTickSystem* > _posTickSystems;
+
+		std::queue< ECS::EntityId > _entitiesToRemoveRequests;
+
+		std::unordered_map< std::string, IEntityFactory* > _entityFactories;
+
+		Common::Delegate< GameEntity& > _onEntityCreate;
+		Common::Delegate< GameEntity& > _onEntityDestroy;
 };
+
+template < typename T, typename... Params >
+inline T& Scene::AddGlobalComponent( Params&&... params )
+{
+	return _entityContainer.AddGlobalComponent< T >( std::forward< Params >( params )... );
+}
 
 template < typename T >
 inline GameEntity Scene::GetFirstEntityOfType()
 {
 	return _entityContainer.GetFirstEntityOfType< T >();
+}
+
+template < typename Functor >
+inline uint32 Scene::SubscribeToOnEntityCreate( Functor&& functor )
+{
+	return _onEntityCreate.AddSubscriber( std::forward< Functor >( functor ) );
+}
+
+template < typename Functor >
+inline uint32 Scene::SubscribeToOnEntityDestroy( Functor&& functor )
+{
+	return _onEntityDestroy.AddSubscriber( std::forward< Functor >( functor ) );
 }

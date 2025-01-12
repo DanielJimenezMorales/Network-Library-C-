@@ -1,36 +1,33 @@
 #pragma once
 #include "NullTextureLoader.h"
-#include "NullGizmoQueryStorage.h"
 
 class ITextureLoader;
 class IGizmoQueryStorage;
 
 class ServiceLocator
 {
-public:
-	ServiceLocator() : _textureLoader(nullptr), _nullTextureLoader(), _gizmoQueryStorage(nullptr), _nullGizmoQueryStorage() {}
-	~ServiceLocator() {}
+	public:
+		ServiceLocator()
+		    : _textureLoader( nullptr )
+		    , _nullTextureLoader()
+		{
+		}
 
-	static ServiceLocator& CreateInstance();
-	static ServiceLocator& GetInstance();
-	static void DestroyInstance();
+		~ServiceLocator() {}
 
-	ITextureLoader& GetTextureLoader();
-	void RegisterTextureLoader(ITextureLoader* textureLoader);
-	void UnregisterTextureLoader();
+		static ServiceLocator& CreateInstance();
+		static ServiceLocator& GetInstance();
+		static void DestroyInstance();
 
-	IGizmoQueryStorage& GetGizmoQueryStorage();
-	void RegisterGizmoQueryStorage(IGizmoQueryStorage* gizmoQueryStorage);
-	void UnregisterGizmoQueryStorage();
+		ITextureLoader& GetTextureLoader();
+		void RegisterTextureLoader( ITextureLoader* textureLoader );
+		void UnregisterTextureLoader();
 
-	void UnregisterAll();
+		void UnregisterAll();
 
-private:
-	static ServiceLocator* _instance;
+	private:
+		static ServiceLocator* _instance;
 
-	ITextureLoader* _textureLoader;
-	NullTextureLoader _nullTextureLoader;
-
-	IGizmoQueryStorage* _gizmoQueryStorage;
-	NullGizmoQueryStorage _nullGizmoQueryStorage;
+		ITextureLoader* _textureLoader;
+		NullTextureLoader _nullTextureLoader;
 };

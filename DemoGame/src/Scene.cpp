@@ -2,77 +2,78 @@
 
 #include <cassert>
 
-#include "TransformComponent.h"
 #include "GameEntity.hpp"
-#include "IUpdateSystem.h"
 #include "IPreTickSystem.h"
-#include "ITickSystem.h"
-#include "IPosTickSystem.h"
 
-void Scene::Update( float32 elapsedTime )
+#include "components/transform_component.h"
+
+#include "entity_factories/i_entity_factory.h"
+
+Scene::Scene()
+    : _entityContainer()
+    , _systemsHandler()
 {
-	auto it = _updateSystems.begin();
-	for ( ; it != _updateSystems.end(); ++it )
-	{
-		( *it )->Update( _entityContainer, elapsedTime );
-	}
 }
 
-void Scene::PreTick( float32 tickElapsedTime )
+bool Scene::RegisterEntityFactory( const std::string& id, IEntityFactory* factory )
 {
+	assert( factory != nullptr );
+
+	auto id_found = _entityFactories.find( id );
+	if ( id_found != _entityFactories.cend() )
+	{
+		return false;
+	}
+
+	_entityFactories.insert( { id, factory } );
+	return true;
+}
+
+void Scene::AddSystem( ECS::SystemCoordinator* system )
+{
+	_systemsHandler.AddSystem( system );
+}
+
+void Scene::Update( float32 elapsed_time )
+{
+	_systemsHandler.TickStage( _entityContainer, elapsed_time, ECS::ExecutionStage::UPDATE );
+}
+
+void Scene::PreTick( float32 elapsed_time )
+{
+	_systemsHandler.TickStage( _entityContainer, elapsed_time, ECS::ExecutionStage::PRETICK );
+
 	auto it = _preTickSystems.begin();
 	for ( ; it != _preTickSystems.end(); ++it )
 	{
-		( *it )->PreTick( _entityContainer, tickElapsedTime );
+		( *it )->PreTick( _entityContainer, elapsed_time );
 	}
 }
 
-void Scene::Tick( float32 tickElapsedTime )
+void Scene::Tick( float32 elapsed_time )
 {
-	auto it = _tickSystems.begin();
-	for ( ; it != _tickSystems.end(); ++it )
-	{
-		( *it )->Tick( _entityContainer, tickElapsedTime );
-	}
+	_systemsHandler.TickStage( _entityContainer, elapsed_time, ECS::ExecutionStage::TICK );
 }
 
-void Scene::PosTick( float32 tickElapsedTime )
+void Scene::PosTick( float32 elapsed_time )
 {
-	auto it = _posTickSystems.begin();
-	for ( ; it != _posTickSystems.end(); ++it )
-	{
-		( *it )->PosTick( _entityContainer, tickElapsedTime );
-	}
+	_systemsHandler.TickStage( _entityContainer, elapsed_time, ECS::ExecutionStage::POSTICK );
 }
 
-void Scene::Render( SDL_Renderer* renderer )
+void Scene::Render( float32 elapsed_time )
 {
-	_spriteRendererSystem.Render( _entityContainer, renderer );
-	_gizmoRendererSystem.Render( _entityContainer, renderer );
+	_systemsHandler.TickStage( _entityContainer, elapsed_time, ECS::ExecutionStage::RENDER );
 }
 
-void Scene::AddUpdateSystem( IUpdateSystem* system )
+void Scene::EndOfFrame()
 {
-	assert( system != nullptr );
-	_updateSystems.push_back( system );
+	DestroyPendingEntities();
 }
 
 void Scene::AddPreTickSystem( IPreTickSystem* system )
 {
 	assert( system != nullptr );
 	_preTickSystems.push_back( system );
-}
-
-void Scene::AddTickSystem( ITickSystem* system )
-{
-	assert( system != nullptr );
-	_tickSystems.push_back( system );
-}
-
-void Scene::AddPosTickSystem( IPosTickSystem* system )
-{
-	assert( system != nullptr );
-	_posTickSystems.push_back( system );
 }
 
 GameEntity Scene::CreateGameEntity()
@@ -83,12 +84,50 @@ GameEntity Scene::CreateGameEntity()
 	return newEntity;
 }
 
+GameEntity Scene::CreateGameEntity( const std::string& type, const BaseEntityConfiguration* config )
+{
+	auto factory_found = _entityFactories.find( type );
+	if ( factory_found == _entityFactories.cend() )
+	{
+		return GameEntity();
+	}
+
+	GameEntity new_entity = _entityContainer.CreateGameEntity();
+	IEntityFactory* factory = factory_found->second;
+	factory->Create( new_entity, config );
+	_onEntityCreate.Execute( new_entity );
+	return new_entity;
+}
+
 void Scene::DestroyGameEntity( const GameEntity& entity )
 {
-	_entityContainer.DestroyGameEntity( entity );
+	_entitiesToRemoveRequests.push( entity.GetId() );
 }
 
 GameEntity Scene::GetEntityFromId( uint32 id )
 {
 	return _entityContainer.GetEntityFromId( id );
+}
+
+void Scene::UnsubscribeFromOnEntityCreate( uint32 id )
+{
+	_onEntityCreate.DeleteSubscriber( id );
+}
+
+void Scene::UnsubscribeFromOnEntityDestroy( uint32 id )
+{
+	_onEntityDestroy.DeleteSubscriber( id );
+}
+
+void Scene::DestroyPendingEntities()
+{
+	while ( !_entitiesToRemoveRequests.empty() )
+	{
+		const ECS::EntityId entity_id = _entitiesToRemoveRequests.front();
+		_entitiesToRemoveRequests.pop();
+
+		GameEntity entity = _entityContainer.GetEntityFromId( entity_id );
+		_onEntityDestroy.Execute( entity );
+		_entityContainer.DestroyGameEntity( entity_id );
+	}
 }
